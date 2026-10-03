@@ -1,0 +1,38 @@
+name: Compactar historial
+
+# Este repo solo guarda vídeos de paso hasta que Buffer los publica. Git conserva en el
+# historial los que ya se borraron, así que una vez al mes se rehace el repo con un único
+# commit que contiene solo lo que hay ahora (los vídeos pendientes). Las URLs de los
+# vídeos pendientes no cambian, porque apuntan a la rama main y a la misma ruta.
+on:
+  schedule:
+    - cron: "0 3 2 * *"   # día 2 de cada mes, 03:00 UTC (lejos de la tarea del sábado y de las 21:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compactar
+  cancel-in-progress: false
+
+jobs:
+  compactar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Rehacer main con un solo commit
+        run: |
+          antes=$(git count-objects -vH | grep size-pack || true)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan compacto
+          git add -A
+          git commit -q -m "Historial compactado $(date -u +%F): solo vídeos pendientes"
+          git push -f origin compacto:main
+          echo "Antes (copia local superficial): $antes"
+          echo "Vídeos que siguen en el repo:"
+          find . -name "*.mp4" -not -path "./.git/*" | sort
